@@ -279,8 +279,6 @@ cardListing (
     uint8_t * bufferStart;
     int bytesWritten;
     HtmlPrint * htmlPrint;
-Serial.println ("cardListing called");
-Serial.printf ("maxLen: %d\n", maxLen);
 
     // Redirect the output to the web page
     htmlPrint = new HtmlPrint();
@@ -297,7 +295,6 @@ Serial.printf ("maxLen: %d\n", maxLen);
         switch (state) {
         case LS_HEADER:
             // Add the header, start the body and add the heading
-Serial.println("Adding header");
             strcpy_P((char *)buffer, sdHeader);
             state = LS_DISPLAY_FILES;
             break;
@@ -306,10 +303,8 @@ Serial.println("Adding header");
             // Add the next file name
             sdFile = SdFile();
             if (!sdFile.openNext(&sdRootDir, O_RDONLY)) {
-Serial.println("File open failed!");
                 state = LS_TRAILER;
                 if (!sdCardEmpty) {
-Serial.println("Some files displayed");
                     // No more files, at least one file displayed
                     break;
                 }
@@ -327,9 +322,7 @@ Serial.println("Some files displayed");
             }
 
             // Add the anchor if another file exists
-Serial.printf("Adding Anchor: ");
             buildHtmlAnchor (htmlPrint, buffer);
-Serial.println((char *)buffer);
 
             // Close the file
             sdFile.close();
@@ -341,7 +334,6 @@ Serial.println((char *)buffer);
                 strcat_P((char *)buffer, htmlUlListEnd);
 
             // Finish the page body
-Serial.println("Adding trailer");
             strcat_P((char *)buffer, htmlBodyEnd);
             state = LS_DONE;
             break;
@@ -359,18 +351,13 @@ Serial.println("Adding trailer");
     // longer necessary.  Close the root directory which was opened in
     // ListingPage below.
     bytesWritten = buffer - bufferStart;
-Serial.printf ("bytesWritten: %d\n", bytesWritten);
     if (!bytesWritten)
-{
-Serial.println("Closing root directory");
         sdRootDir.close();
-}
 
     // Done redirecting the output
     delete htmlPrint;
 
     // Return this portion of the page to the web server for transmission
-Serial.printf ("cardListing returning: %d\n", bytesWritten);
     return bytesWritten;
 }
 
@@ -396,12 +383,10 @@ SdCardServer::listingPage (
         // function exits to allow the code above to access the SD card file
         // system and send more data as buffers become available in the web
         // server.
-Serial.println("Opening root directory");
         sdCardEmpty = 1;
         sdRootDir = SdFile();
         if (!sdRootDir.openRoot(sdFat->vol())) {
             // Invalid SD card format
-Serial.println("Invalid SD card format");
             request->send_P(200, "text/html", invalid_SD_card_format_html, processor);
         } else {
             state = LS_HEADER;
@@ -416,123 +401,6 @@ Serial.println("Invalid SD card format");
         }
     }
 }
-
-/*
-void
-buildHtmlAnchor(HtmlPrint * htmlPrint, uint8_t *buffer) {
-    uint64_t u64;
-    uint32_t u32;
-
-    // Start the list if necessary
-    if (sdCardEmpty) {
-        strcpy_P((char *)buffer, htmlUlListStart);
-        buffer += strlen((char *)buffer);
-    }
-    sdCardEmpty = 0;
-
-    // Build the HTML anchor
-    strcpy((char *)buffer, "%LI%%A%%SD%");
-    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
-    sdFile.printName(htmlPrint);
-    strcat((char *)buffer, "\">");
-    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
-    sdFile.printName(htmlPrint);
-    strcat((char *)buffer, "%/A% (");
-
-    //  Display the file size
-    u64 = sdFile.fileSize();
-    u32 = u64 / (1ull * 1000 * 1000 * 1000);
-    if (u32)
-        strcat((char *)buffer, String(u32).c_str());
-    u32 = u64 % (1ull * 1000 * 1000 * 1000);
-    strcat((char *)buffer, String(u32).c_str());
-    strcat((char *)buffer, ")%/LI%");
-}
-
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-int addFileName(HtmlPrint * htmlPrint, uint8_t * buffer) {
-    uint8_t * bufferStart;
-
-    bufferStart = buffer;
-    switch (sdListingState) {
-    case LS_HEADER:
-        strcpy_P((char *)buffer, sdHeader);
-        sdListingState = LS_DISPLAY_FILES;
-        return strlen((char *)buffer);
-
-    case LS_DISPLAY_FILES:
-        sdFile = SdFile();
-        if (!sdFile.openNext(&sdRootDir, O_RDONLY)) {
-            sdListingState = LS_TRAILER;
-            if (!sdCardEmpty)
-                // No more files, at least one file displayed
-                return addFileName(htmlPrint, buffer);
-
-            // No files on the SD card
-            strcpy_P ((char *)buffer, sdNoFiles);
-            return strlen((char *)buffer);
-        }
-
-        // Add the anchor if another file exists
-        buildHtmlAnchor (htmlPrint, buffer);
-
-        // Close the file
-        sdFile.close();
-        return strlen((char *)buffer);
-
-    case LS_TRAILER:
-        if (!sdCardEmpty)
-            strcat_P((char*)buffer, htmlUlListEnd);
-        strcat_P((char *)buffer, htmlBodyEnd);
-        sdListingState = LS_DONE;
-        return strlen((char *)buffer);
-    }
-
-    // The listing is complete
-    return 0;
-}
-
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-int sdCardListing(uint8_t * buffer, size_t maxLen) {
-    uint8_t * bufferStart;
-    int bytesWritten;
-    int dataBytes;
-    HtmlPrint * htmlPrint;
-
-    htmlPrint = new HtmlPrint();
-    bufferStart = buffer;
-    do {
-        // Determine if the buffer is full enough
-        bytesWritten = buffer - bufferStart;
-        if (maxLen < MAX_FILE_NAME_SIZE) {
-#ifdef  MARK_BOUNDARY
-            if (bytesWritten) {
-                Serial.println("Next buffer");
-                strcat ((char *)buffer, "--------------------<br>\n");
-                buffer += strlen((char *)buffer);
-                bytesWritten = buffer - bufferStart;
-            }
-#endif  // MARK_BOUNDARY
-            break;
-        }
-
-        // Add the next file name
-        *buffer = 0;
-        dataBytes = addFileName (htmlPrint, buffer);
-        if (!dataBytes)
-            break;
-        buffer += dataBytes;
-        maxLen -= dataBytes;
-    } while (1);
-
-    // Close the root directory when done
-    if (!bytesWritten)
-        sdRootDir.close();
-
-    delete htmlPrint;
-    return bytesWritten;
-}
-*/
 
 //------------------------------------------------------------------------------
 // sdCardSize
@@ -702,7 +570,6 @@ SdCardServer::sdCardWebPage(
     // This is one of the SD card's web pages
     // Determine the filename
     filename = &url[webPageLength + webPageMissingSlash];
-Serial.printf ("filename: %s\n", filename);
 
     //  Determine which SD card web page was requested
     if (filename[0])
