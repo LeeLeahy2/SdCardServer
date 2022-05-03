@@ -53,9 +53,11 @@ public:
         );
 
     //--------------------------------------------------------------------------
-    // sdCardWebPage
-    //      Display the SD card web page if the requested URL matches the
-    //      URL passed to the SdCardServer initializer
+    // isSdCardWebPage
+    //      Display the SD card listing web page if the requested URL matches
+    //      the URL passed to the SdCardServer initializer.  Start the SD card
+    //      file download if the requested URL starts with the URL passed to
+    //      the sdCardServer initializer and the file is found on the SD card.
     //
     //  Inputs:
     //      request: Address of the AsyncWebServerRequest object
@@ -66,8 +68,31 @@ public:
     //      the page is displayed.
     //--------------------------------------------------------------------------
     int
-    sdCardWebPage(
+    isSdCardWebPage(
         AsyncWebServerRequest * request
+        );
+
+    //--------------------------------------------------------------------------
+    // sdCardListingWebPageLink
+    //      Add a link to the SD card listing web page.
+    //
+    //  Inputs:
+    //      buffer: Address of a zero terminated string to be concatenated with
+    //          the SD card listing link
+    //      maxLen: Maximum length of the next portion of the HTML response
+    //      options: Address of a zero terminated string containing the options,
+    //          use NULL if no options specified
+    //      linkText: Text to display for the link
+    //
+    //  Returns:
+    //      The number of characters written to the response buffer
+    //--------------------------------------------------------------------------
+    int
+    sdCardListingWebPageLink(
+        char * buffer,
+        size_t maxLen,
+        const char * options,
+        const char * linkText
         );
 
 private:

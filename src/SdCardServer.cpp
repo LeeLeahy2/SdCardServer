@@ -545,12 +545,14 @@ SdCardServer::SdCardServer (
 }
 
 //------------------------------------------------------------------------------
-// sdCardWebPage
-//      Display the SD card web page if the requested URL matches the
-//      URL passed to the SdCardServer initializer
+// isSdCardWebPage
+//      Display the SD card listing web page if the requested URL matches
+//      the URL passed to the SdCardServer initializer.  Start the SD card
+//      file download if the requested URL starts with the URL passed to
+//      the sdCardServer initializer and the file is found on the SD card.
 //------------------------------------------------------------------------------
 int
-SdCardServer::sdCardWebPage(
+SdCardServer::isSdCardWebPage(
     AsyncWebServerRequest * request
     )
 {
@@ -578,4 +580,45 @@ SdCardServer::sdCardWebPage(
     //  Display the listing page if requested
     listingPage(request);
     return 1;
+}
+
+//------------------------------------------------------------------------------
+// sdCardListingWebPageLink
+//      Add a link to the SD card listing web page.
+//------------------------------------------------------------------------------
+int
+SdCardServer::sdCardListingWebPageLink(
+    char * buffer,
+    size_t maxLen,
+    const char * options,
+    const char * linkText
+    )
+{
+    int initialLength;
+    int sizeNeeded;
+
+    // Determine the amount of space necessary to build the anchor link
+    sizeNeeded = 2 + (options && *options ? ((*options != ' ') ? 1 : 0) : 0)
+               + (options ? strlen(options) : 0) + 6 + strlen(webPage) + 2
+               + strlen(linkText) + 4 + 1;
+
+    // Add the link only if it fits
+    initialLength = strlen(buffer);
+    if (maxLen >= sizeNeeded) {
+        strcat(buffer, "<a");
+        if (options && *options) {
+            if (*options != ' ')
+                strcat(buffer, " ");
+            strcat(buffer, options);
+        }
+        strcat(buffer, " href=\"");
+        strcat(buffer, webPage);
+        strcat(buffer, "\">");
+        strcat(buffer, linkText);
+        strcat(buffer, "</a>");
+    }
+
+    // Return the number of characters added to the buffer, NOT including the
+    // zero termination!
+    return strlen(buffer) - initialLength;
 }
