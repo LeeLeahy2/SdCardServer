@@ -28,10 +28,7 @@ typedef enum {
 // HTML header pieces
 //------------------------------------------------------------------------------
 
-static prog_char htmlHeaderStart[] PROGMEM = R"rawliteral(<!DOCTYPE HTML>
-<html>
-<head>
-  <title>)rawliteral";
+static prog_char htmlHeaderStart[] PROGMEM = "<!DOCTYPE HTML>\n<html lang=\"en\">\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n  <title>";
 
 static prog_char htmlHeaderEndBodyStart[] PROGMEM = R"rawliteral(</title>
 </head>
