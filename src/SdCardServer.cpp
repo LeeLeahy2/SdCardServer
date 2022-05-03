@@ -625,7 +625,7 @@ fileDownload (
 //      Get the SD card size in bytes
 //
 //  Returns:
-//      Returns the size of the SD card in MB, zero (0) if the SD card is not
+//      Returns the size of the SD card in bytes, zero (0) if the SD card is not
 //      present.
 //------------------------------------------------------------------------------
 uint64_t
@@ -634,19 +634,18 @@ SdCardServer::sdCardSize(
     )
 {
     csd_t csd;
+    uint64_t sdCardBytes;
 
     // Verify that the SD card is present
     if (!sdCardPresent())
-{
-Serial.println("No card present!");
         return 0;
-}
 
     // Get the SD card size
     sdFat->card()->readCSD(&csd); //Card Specific Data
-Serial.printf("SD card present, %lld\n", sdCardCapacity(&csd));
-    sdCardSizeMB = 0.000512 * sdCardCapacity(&csd);
-    return sdCardSizeMB;
+    sdCardBytes = sdCardCapacity(&csd);
+    sdCardBytes <<= 9;
+    sdCardSizeMB = 0.000001 * sdCardBytes;
+    return sdCardBytes;
 }
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
