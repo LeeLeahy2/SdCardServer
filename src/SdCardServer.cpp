@@ -489,6 +489,28 @@ fileDownload (
 }
 
 //------------------------------------------------------------------------------
+// indexPage
+//      Main page for the SD card web site
+//
+//  Inputs:
+//      request: Address of the AsyncWebServerRequest object
+//------------------------------------------------------------------------------
+static
+void
+indexPage (
+    AsyncWebServerRequest * request
+    )
+{
+    const char * page;
+
+    // Determine which page to send
+    page = sdCardSizeMB ? index_html : no_sd_card_html;
+
+    // Send the response
+    request->send_P(200, "text/html", page, processor);
+}
+
+//------------------------------------------------------------------------------
 // sdCardSize
 //      Get the SD card size in bytes
 //
@@ -621,4 +643,22 @@ SdCardServer::sdCardListingWebPageLink(
     // Return the number of characters added to the buffer, NOT including the
     // zero termination!
     return strlen(buffer) - initialLength;
+}
+
+//------------------------------------------------------------------------------
+// sdCardWebSite
+//      Create a website for the SD card
+//------------------------------------------------------------------------------
+void
+SdCardServer::sdCardWebSite(
+    AsyncWebServer * server
+    )
+{
+    // Determine if the SD card is present
+    sdCardSize();
+
+    // Send the response
+    server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+        indexPage (request);
+    });
 }

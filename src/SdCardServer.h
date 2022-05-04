@@ -95,6 +95,18 @@ public:
         const char * linkText
         );
 
+    //------------------------------------------------------------------------------
+    // sdCardWebSite
+    //      Create a website for the SD card
+    //
+    //  Inputs:
+    //      server: Address of an AsyncWebServer object
+    //------------------------------------------------------------------------------
+    void
+    sdCardWebSite(
+        AsyncWebServer * server
+        );
+
 private:
 
     const char * server;    // Zero terminated string for web server name
