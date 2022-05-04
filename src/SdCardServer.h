@@ -115,27 +115,21 @@ public:
         AsyncWebServer * server
         );
 
-private:
-
-    const char * serverHeaderText; // Zero terminated string for web server name
-    SD_CARD_PRESENT sdCardPresent; // Routine to determine if SD card is present
-    const char * webPage;          // Zero terminated string for SD card's web pages
-    int webPageMissingSlash;       // Non zero if last character is a not a slash
-    int webPageLength;             // Length of the webPage string
-
+    //--------------------------------------------------------------------------
+    // onNotFound
+    //      Add the request not found event.  This event handles the SD card
+    //      requests for listing and file download.
+    //
+    //      Call this routine if and only if the AsyncWebServer.onNotFound event
+    //      handler is not delared by the code calling SdCardServer.  The call
+    //      is made after the the AsyncWebServer is initialized.
+    //
+    //  Inputs:
+    //      server: Address of an AsyncWebServer object
+    //--------------------------------------------------------------------------
     void
-    listingPage (
-        AsyncWebServerRequest * request
-        );
-
-    int
-    mountSdCard(
-        void
-        );
-
-    uint64_t
-    sdCardSize(
-        void
+    onNotFound (
+        AsyncWebServer * server
         );
 };
 

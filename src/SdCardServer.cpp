@@ -121,13 +121,18 @@ static const char not_implemented_html[] PROGMEM = R"rawliteral(%H%%T%%/HB%
 // Locals
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-static char htmlBuffer[256];    // Buffer for HTML token replacement
-static int sdCardEmpty;         // No files found in the FAT file system
-static float sdCardSizeMB;      // Size of the SD card in MB (1000 * 1000 bytes)
-static SdFat * sdFat;           // Address of a SdFat object
-static SdFile sdFile;           // File on the SD card
-static SdFile sdRootDir;        // Root directory file on the SD card
-static LISTING_STATE state;     // Listing state
+static SD_CARD_PRESENT cardPresent;    // Routine to determine if SD card is present
+static char htmlBuffer[256];           // Buffer for HTML token replacement
+static int sdCardEmpty;                // No files found in the FAT file system
+static float sdCardSizeMB;             // Size of the SD card in MB (1000 * 1000 bytes)
+static SdFat * sdFat;                  // Address of a SdFat object
+static SdFile sdFile;                  // File on the SD card
+static SdFile sdRootDir;               // Root directory file on the SD card
+static const char * serverHdrText;     // Zero terminated string for web server name
+static LISTING_STATE state;            // Listing state
+static const char * webPage;           // Zero terminated string for SD card's web pages
+static int webPageMissingSlash;        // Non zero if last character is a not a slash
+static int webPageLength;              // Length of the webPage string
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Support Classes
@@ -223,6 +228,35 @@ processor (
     if (var == "/UL")
         return String(htmlUlListEnd);
     return String();
+}
+
+//------------------------------------------------------------------------------
+// sdCardSize
+//      Get the SD card size in bytes
+//
+//  Returns:
+//      Returns the size of the SD card in bytes, zero (0) if the SD card is not
+//      present.
+//------------------------------------------------------------------------------
+static
+uint64_t
+sdCardSize(
+    void
+    )
+{
+    csd_t csd;
+    uint64_t sdCardBytes;
+
+    // Verify that the SD card is present
+    if (!cardPresent())
+        return 0;
+
+    // Get the SD card size
+    sdFat->card()->readCSD(&csd); //Card Specific Data
+    sdCardBytes = sdCardCapacity(&csd);
+    sdCardBytes <<= 9;
+    sdCardSizeMB = 0.000001 * sdCardBytes;
+    return sdCardBytes;
 }
 
 //------------------------------------------------------------------------------
@@ -368,8 +402,9 @@ cardListing (
 //  Inputs:
 //      request: Address of the AsyncWebServerRequest object
 //------------------------------------------------------------------------------
+static
 void
-SdCardServer::listingPage (
+listingPage (
     AsyncWebServerRequest * request
     )
 {
@@ -395,8 +430,8 @@ SdCardServer::listingPage (
             }, processor);
 
             // Send the response
-            if (serverHeaderText)
-                response->addHeader("Server", serverHeaderText);
+            if (serverHdrText)
+                response->addHeader("Server", serverHdrText);
             request->send(response);
         }
     }
@@ -511,73 +546,15 @@ indexPage (
 }
 
 //------------------------------------------------------------------------------
-// sdCardSize
-//      Get the SD card size in bytes
-//
-//  Returns:
-//      Returns the size of the SD card in bytes, zero (0) if the SD card is not
-//      present.
-//------------------------------------------------------------------------------
-uint64_t
-SdCardServer::sdCardSize(
-    void
-    )
-{
-    csd_t csd;
-    uint64_t sdCardBytes;
-
-    // Verify that the SD card is present
-    if (!sdCardPresent())
-        return 0;
-
-    // Get the SD card size
-    sdFat->card()->readCSD(&csd); //Card Specific Data
-    sdCardBytes = sdCardCapacity(&csd);
-    sdCardBytes <<= 9;
-    sdCardSizeMB = 0.000001 * sdCardBytes;
-    return sdCardBytes;
-}
-
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// Library API
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-//------------------------------------------------------------------------------
-// SdCardServer
-//      Initialize an SdCardServer object
-//------------------------------------------------------------------------------
-SdCardServer::SdCardServer (
-    SdFat * sd,
-    SD_CARD_PRESENT sdCardPresent,
-    const char * url,
-    const char * serverHeaderText
-    )
-{
-    // Remember the SdFat object that will be used to access the SD card
-    sdFat = sd;
-    this->sdCardPresent = sdCardPresent;
-
-    // Remember the server name to be added as an HTML header
-    this->serverHeaderText = serverHeaderText;
-
-    // Save the base URL
-    webPage = url;
-    webPageLength = strlen(webPage);
-    webPageMissingSlash = (webPage[webPageLength - 1] == '/') ? 0 : 1;
-}
-
-//------------------------------------------------------------------------------
-// isSdCardWebPage
+// isSdCardPage
 //      Display the SD card listing web page if the requested URL matches
 //      the URL passed to the SdCardServer constructor.  Start the SD card
 //      file download if the requested URL starts with the URL passed to
 //      the sdCardServer constructor and the file is found on the SD card.
-//
-//      This routine is designed to be called from the server.onNotFound
-//      event routine.
 //------------------------------------------------------------------------------
+static
 int
-SdCardServer::isSdCardWebPage(
+isSdCardPage(
     AsyncWebServerRequest * request
     )
 {
@@ -605,6 +582,74 @@ SdCardServer::isSdCardWebPage(
     //  Display the listing page if requested
     listingPage(request);
     return 1;
+}
+
+//------------------------------------------------------------------------------
+// pageNotFound
+//      Handle the page not found events.  Display the SD card listing or
+//      download the specified SD card file.
+//
+//  Inputs:
+//      request: Address of the AsyncWebServerRequest object
+//------------------------------------------------------------------------------
+static
+void
+pageNotFound (
+    AsyncWebServerRequest * request
+    )
+{
+    // Display the SD card page if necessary
+    if (isSdCardPage(request))
+        return;
+
+    // URL not found
+    request->send(404);
+}
+
+//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// Library API
+//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+//------------------------------------------------------------------------------
+// SdCardServer
+//      Initialize an SdCardServer object
+//------------------------------------------------------------------------------
+SdCardServer::SdCardServer (
+    SdFat * sd,
+    SD_CARD_PRESENT sdCardPresent,
+    const char * url,
+    const char * serverHeaderText
+    )
+{
+    // Remember the SdFat object that will be used to access the SD card
+    sdFat = sd;
+    cardPresent = sdCardPresent;
+
+    // Remember the server name to be added as an HTML header
+    serverHdrText = serverHeaderText;
+
+    // Save the base URL
+    webPage = url;
+    webPageLength = strlen(webPage);
+    webPageMissingSlash = (webPage[webPageLength - 1] == '/') ? 0 : 1;
+}
+
+//------------------------------------------------------------------------------
+// isSdCardWebPage
+//      Display the SD card listing web page if the requested URL matches
+//      the URL passed to the SdCardServer constructor.  Start the SD card
+//      file download if the requested URL starts with the URL passed to
+//      the sdCardServer constructor and the file is found on the SD card.
+//
+//      This routine is designed to be called from the server.onNotFound
+//      event routine.
+//------------------------------------------------------------------------------
+int
+SdCardServer::isSdCardWebPage(
+    AsyncWebServerRequest * request
+    )
+{
+    return isSdCardPage(request);
 }
 
 //------------------------------------------------------------------------------
@@ -667,5 +712,25 @@ SdCardServer::sdCardWebSite(
     // Send the response
     server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         indexPage (request);
+    });
+}
+
+//------------------------------------------------------------------------------
+// onNotFound
+//      Add the request not found event.  This event handles the SD card
+//      requests for listing and file download.
+//
+//      Call this routine if and only if the AsyncWebServer.onNotFound event
+//      handler is not delared by the code calling SdCardServer.  The call
+//      is made after the the AsyncWebServer is initialized.
+//------------------------------------------------------------------------------
+void
+SdCardServer::onNotFound (
+    AsyncWebServer * server
+    )
+{
+    // Declare the page not found event handler
+    server->onNotFound([](AsyncWebServerRequest *request) {
+        pageNotFound(request);
     });
 }

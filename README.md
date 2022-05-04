@@ -111,4 +111,27 @@ constructor.  Non-zero if the URL matches and the page is displayed.
 ```c++
 if (mySdCardServer.isSdCardWebPage(request))
     return;
+...
+// URL not found
+request->send(404);
+```
+
+### onNotFound(server)
+##### Description
+Add the request not found event.  This event handles the SD card requests for
+listing and file download.
+
+Call this routine if and only if the AsyncWebServer.onNotFound event handler is
+not delared by the code calling SdCardServer.  The call is made after the the
+AsyncWebServer is initialized.
+
+##### Syntax
+`mySdCardServer.onNotFound(server);`
+##### Required parameter
+**server:** Address of an AsyncWebServer object  *(AsyncWebServer *)*
+##### Returns
+None.
+##### Example
+```c++
+mySdCardServer.onNotFound(server);
 ```
