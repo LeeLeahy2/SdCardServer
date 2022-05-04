@@ -395,8 +395,8 @@ SdCardServer::listingPage (
             }, processor);
 
             // Send the response
-            if (server)
-                response->addHeader("Server", server);
+            if (serverHeaderText)
+                response->addHeader("Server", serverHeaderText);
             request->send(response);
         }
     }
@@ -549,8 +549,8 @@ SdCardServer::sdCardSize(
 SdCardServer::SdCardServer (
     SdFat * sd,
     SD_CARD_PRESENT sdCardPresent,
-    const char * server,
-    const char * url
+    const char * url,
+    const char * serverHeaderText
     )
 {
     // Remember the SdFat object that will be used to access the SD card
@@ -558,7 +558,7 @@ SdCardServer::SdCardServer (
     this->sdCardPresent = sdCardPresent;
 
     // Remember the server name to be added as an HTML header
-    this->server = server;
+    this->serverHeaderText = serverHeaderText;
 
     // Save the base URL
     webPage = url;
@@ -569,9 +569,12 @@ SdCardServer::SdCardServer (
 //------------------------------------------------------------------------------
 // isSdCardWebPage
 //      Display the SD card listing web page if the requested URL matches
-//      the URL passed to the SdCardServer initializer.  Start the SD card
+//      the URL passed to the SdCardServer constructor.  Start the SD card
 //      file download if the requested URL starts with the URL passed to
-//      the sdCardServer initializer and the file is found on the SD card.
+//      the sdCardServer constructor and the file is found on the SD card.
+//
+//      This routine is designed to be called from the server.onNotFound
+//      event routine.
 //------------------------------------------------------------------------------
 int
 SdCardServer::isSdCardWebPage(
@@ -606,14 +609,15 @@ SdCardServer::isSdCardWebPage(
 
 //------------------------------------------------------------------------------
 // sdCardListingWebPageLink
-//      Add a link to the SD card listing web page.
+//      Add a link (HTML anchor) to an existing web page.  The link points
+//      to the SD card listing web page.
 //------------------------------------------------------------------------------
 int
 SdCardServer::sdCardListingWebPageLink(
     char * buffer,
     size_t maxLen,
-    const char * options,
-    const char * linkText
+    const char * linkText,
+    const char * options
     )
 {
     int initialLength;
@@ -647,7 +651,10 @@ SdCardServer::sdCardListingWebPageLink(
 
 //------------------------------------------------------------------------------
 // sdCardWebSite
-//      Create a website for the SD card
+//      Create a website for the SD card.  Call this routine if a website
+//      does not already exist.  If a website already exists then use
+//      sdCardListingWebPageLink to add a link (HTML anchor) to an existing
+//      web page.
 //------------------------------------------------------------------------------
 void
 SdCardServer::sdCardWebSite(

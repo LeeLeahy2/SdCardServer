@@ -13,7 +13,8 @@
 
 //------------------------------------------------------------------------------
 // SD_CARD_PRESENT
-//      Determine if the SD card is present and ready for use
+//      Determine if the SD card is present and ready for use.  This routine
+//      exists in the code calling the SdCardServer library.
 //
 //  Inputs:
 //      var: String containing the token found in the HTML response
@@ -36,35 +37,38 @@ public:
     //      Initialize an SdCardServer object
     //
     //  Inputs:
-    //      sdFat: Address of an SdFat object associated with the SD card.
+    //      sd: Address of an SdFat object associated with the SD card.
     //      sdCardPresent: Routine address to determine if the SD card is
     //          present and available for use.
-    //      server: Zero terminated string containing the server name that
-    //          is added as an html header.
     //      url: Zero terminated string containing the URL relative to the
     //          local website.  The URL needs to end in a trailing slash (/).
     //          This web page will list the files on the SD card.
+    //      serverHeaderText: Zero terminated string containing the server name
+    //          that is added as an optional html header.
     //--------------------------------------------------------------------------
     SdCardServer (
         SdFat * sd,
         SD_CARD_PRESENT sdCardPresent,
-        const char * server,
-        const char * url
+        const char * url,
+        const char * serverHeaderText = NULL
         );
 
     //--------------------------------------------------------------------------
     // isSdCardWebPage
     //      Display the SD card listing web page if the requested URL matches
-    //      the URL passed to the SdCardServer initializer.  Start the SD card
+    //      the URL passed to the SdCardServer constructor.  Start the SD card
     //      file download if the requested URL starts with the URL passed to
-    //      the sdCardServer initializer and the file is found on the SD card.
+    //      the sdCardServer constructor and the file is found on the SD card.
+    //
+    //      This routine is designed to be called from the server.onNotFound
+    //      event routine.
     //
     //  Inputs:
     //      request: Address of the AsyncWebServerRequest object
     //
     //  Returns:
     //      Zero (0) if the requested URL does not match the URL passed to
-    //      the SdCardServer initializer.  Non-zero if the URL matches and
+    //      the SdCardServer constructor.  Non-zero if the URL matches and
     //      the page is displayed.
     //--------------------------------------------------------------------------
     int
@@ -74,15 +78,16 @@ public:
 
     //--------------------------------------------------------------------------
     // sdCardListingWebPageLink
-    //      Add a link to the SD card listing web page.
+    //      Add a link (HTML anchor) to an existing web page.  The link points
+    //      to the SD card listing web page.
     //
     //  Inputs:
     //      buffer: Address of a zero terminated string to be concatenated with
     //          the SD card listing link
     //      maxLen: Maximum length of the next portion of the HTML response
+    //      linkText: Text to display for the link
     //      options: Address of a zero terminated string containing the options,
     //          use NULL if no options specified
-    //      linkText: Text to display for the link
     //
     //  Returns:
     //      The number of characters written to the response buffer
@@ -91,17 +96,20 @@ public:
     sdCardListingWebPageLink(
         char * buffer,
         size_t maxLen,
-        const char * options,
-        const char * linkText
+        const char * linkText,
+        const char * options = NULL
         );
 
-    //------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------
     // sdCardWebSite
-    //      Create a website for the SD card
+    //      Create a website for the SD card.  Call this routine if a website
+    //      does not already exist.  If a website already exists then use
+    //      sdCardListingWebPageLink to add a link (HTML anchor) to an existing
+    //      web page.
     //
     //  Inputs:
     //      server: Address of an AsyncWebServer object
-    //------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------
     void
     sdCardWebSite(
         AsyncWebServer * server
@@ -109,11 +117,11 @@ public:
 
 private:
 
-    const char * server;    // Zero terminated string for web server name
+    const char * serverHeaderText; // Zero terminated string for web server name
     SD_CARD_PRESENT sdCardPresent; // Routine to determine if SD card is present
-    const char * webPage;   // Zero terminated string for SD card's web pages
-    int webPageMissingSlash;// Non zero if last character is a not a slash
-    int webPageLength;      // Length of the webPage string
+    const char * webPage;          // Zero terminated string for SD card's web pages
+    int webPageMissingSlash;       // Non zero if last character is a not a slash
+    int webPageLength;             // Length of the webPage string
 
     void
     listingPage (
