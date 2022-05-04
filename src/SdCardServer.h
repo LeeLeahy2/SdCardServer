@@ -7,8 +7,7 @@
 #define SD_CARD_SERVER_H_INCLUDED
 
 #include <Arduino.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWebServer.h>  //Get from: https://github.com/me-no-dev/ESPAsyncWebServer
 #include "SdFat.h" //http://librarymanager/All#sdfat_exfat by Bill Greiman. Currently uses v2.1.1
 
 //------------------------------------------------------------------------------
