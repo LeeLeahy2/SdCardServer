@@ -12,7 +12,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/gpl.html>
 
 ## Introduction
-The SD Card Server library provides routines to add a link to a web page that lists the files on the SD card.  Each link on this page displays the file name and its size.  Clicking on one of these links causes the file to be downloaded from the SD card to the computer running the browser.
+The SD Card Server library provides routines to add a link to a web page that lists the files on the SD card.  Each link on this page displays the file modify date, name and its size.  Clicking on one of these links causes the file to be downloaded from the SD card to the computer running the browser.
 
 ## Constructor
 
