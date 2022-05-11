@@ -278,16 +278,16 @@ buildHtmlAnchor(HtmlPrint * htmlPrint, uint8_t *buffer) {
     strcat((char *)buffer, "\">");
     htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
     sdFile.printName(htmlPrint);
-    strcat((char *)buffer, "%/A% (");
+    strcat((char *)buffer, "%/A%, ");
 
-    //  Display the file size
+    // Display the file size
     u64 = sdFile.fileSize();
     u32 = u64 / (1ull * 1000 * 1000 * 1000);
     if (u32)
         strcat((char *)buffer, String(u32).c_str());
     u32 = u64 % (1ull * 1000 * 1000 * 1000);
     strcat((char *)buffer, String(u32).c_str());
-    strcat((char *)buffer, ")%/LI%");
+    strcat((char *)buffer, " bytes%/LI%");
 }
 
 //------------------------------------------------------------------------------
