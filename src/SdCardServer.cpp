@@ -85,8 +85,6 @@ static prog_char sdNoFiles[] PROGMEM = R"rawliteral(
   <p>No files found!</p>
 )rawliteral";
 
-static prog_char sdDirectory[] PROGMEM = "/sd/";
-
 //------------------------------------------------------------------------------
 // index.html
 //------------------------------------------------------------------------------
@@ -212,7 +210,7 @@ processor (
     if (var == "/LI")
         return String(htmlListItemEnd);
     if (var == "SD")
-        return String(sdDirectory);
+        return String(webPage);
     if (var == "SZ") {
         sprintf (htmlBuffer, "%3.0f %s",
                  sdCardSizeMB < 1000. ? sdCardSizeMB : sdCardSizeMB / 1000.,
