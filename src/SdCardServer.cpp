@@ -271,8 +271,16 @@ buildHtmlAnchor(HtmlPrint * htmlPrint, uint8_t *buffer) {
     uint64_t u64;
     uint32_t u32;
 
+    // Start the list item
+    strcpy((char *)buffer, "%LI%");
+
+    // Display the file date
+    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
+    sdFile.printModifyDateTime(htmlPrint);
+    strcat((char *)buffer, ", ");
+
     // Build the HTML anchor
-    strcpy((char *)buffer, "%LI%%A%%SD%");
+    strcat((char *)buffer, "%A%%SD%");
     htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
     sdFile.printName(htmlPrint);
     strcat((char *)buffer, "\">");
