@@ -59,9 +59,10 @@ sdCardPresent();
 ##### Description
 Create a website for the SD card.  Call this routine if a website does not already
 exist.  If a website already exists then use sdCardListingWebPageLink to add a link
-(HTML anchor) to an existing web page.
+(HTML anchor) to an existing web page.  If instead of the main web site the SD card
+listing page is desired then set the redirect value to true.
 ##### Syntax
-`mySdCardServer.sdCardWebSite(server);`
+`mySdCardServer.sdCardWebSite(server, redirect);`
 ##### Required parameter
 **server:** Address of an AsyncWebServer object  *(AsyncWebServer *)*
 **redirect:** Redirect the main web page to the SD card listing page if set true
