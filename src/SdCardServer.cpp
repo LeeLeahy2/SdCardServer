@@ -617,6 +617,23 @@ pageNotFound (
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 //------------------------------------------------------------------------------
+// ~SdCardServer
+//      SdCardServer object destructor
+//------------------------------------------------------------------------------
+SdCardServer::~SdCardServer (
+    )
+{
+    if (server) {
+        // Shutdown the SD card server website
+        if (webSiteHandler)
+            server->removeHandler(webSiteHandler);
+
+        // Done with the server
+        server = NULL;
+    }
+}
+
+//------------------------------------------------------------------------------
 // SdCardServer
 //      Initialize an SdCardServer object
 //------------------------------------------------------------------------------
@@ -638,6 +655,12 @@ SdCardServer::SdCardServer (
     webPage = url;
     webPageLength = strlen(webPage);
     webPageMissingSlash = (webPage[webPageLength - 1] == '/') ? 0 : 1;
+
+    // No handlers are installed yet
+    webSiteHandler = NULL;
+
+    // Server not specified yet
+    server = NULL;
 }
 
 //------------------------------------------------------------------------------
@@ -712,6 +735,9 @@ SdCardServer::sdCardWebSite(
     AsyncWebServer * server
     )
 {
+    // Save the server address
+    this->server = server;
+
     // Determine if the SD card is present
     sdCardSize();
 
@@ -735,6 +761,9 @@ SdCardServer::onNotFound (
     AsyncWebServer * server
     )
 {
+    // Save the server address
+    this->server = server;
+
     // Declare the page not found event handler
     server->onNotFound([](AsyncWebServerRequest *request) {
         pageNotFound(request);

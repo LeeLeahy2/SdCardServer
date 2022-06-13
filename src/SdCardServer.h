@@ -30,7 +30,19 @@ int
 
 class SdCardServer
 {
+private:
+    AsyncWebServer * server;
+
+    // Handlers
+    AsyncCallbackWebHandler * webSiteHandler;   // Handler for web site main page
+
 public:
+    //--------------------------------------------------------------------------
+    // ~SdCardServer
+    //      SdCardServer object destructor
+    //--------------------------------------------------------------------------
+    ~SdCardServer ();
+
     //--------------------------------------------------------------------------
     // SdCardServer
     //      Initialize an SdCardServer object
