@@ -28,10 +28,23 @@ typedef enum {
 // HTML header pieces
 //------------------------------------------------------------------------------
 
-static prog_char htmlHeaderStart[] PROGMEM = "<!DOCTYPE HTML>\n<html lang=\"en\">\n<head>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n  <title>";
+static prog_char htmlHeaderStart[] PROGMEM = "<!DOCTYPE HTML>\n<html lang=\"en\">\n<head>\n";
 
-static prog_char htmlHeaderEndBodyStart[] PROGMEM = R"rawliteral(</title>
-</head>
+static prog_char htmlContentType[] PROGMEM = "  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n";
+
+static prog_char htmlRedirect[] PROGMEM = "  <meta http-equiv=\"refresh\" content=\"0; url='http://";
+
+static prog_char htmlRedirectEnd[] PROGMEM = "'\" />\n";
+
+static prog_char htmlTitle[] PROGMEM = R"rawliteral(  <title>)rawliteral";
+
+static prog_char htmlTitleEnd[] PROGMEM = R"rawliteral(</title>
+)rawliteral";
+
+static prog_char htmlHeaderEnd[] PROGMEM = R"rawliteral(</head>
+)rawliteral";
+
+static prog_char htmlHeaderEndBodyStart[] PROGMEM = R"rawliteral(</head>
 <body>)rawliteral";
 
 static prog_char htmlBodyEnd[] PROGMEM = R"rawliteral(</body>
@@ -73,7 +86,7 @@ static prog_char htmlUlListEnd[] PROGMEM = R"rawliteral(  </ol>
 
 static const char sdFilesH1[] PROGMEM = "%SZ% SD Card";
 
-static prog_char sdHeader[] PROGMEM = R"rawliteral(%H%%H1%%/HB%
+static prog_char sdHeader[] PROGMEM = R"rawliteral(%H%%CT%%T%%H1%%/T%%/HB%
   <h1>%H1%</h1>
 )rawliteral";
 
@@ -89,28 +102,31 @@ static prog_char sdNoFiles[] PROGMEM = R"rawliteral(
 // index.html
 //------------------------------------------------------------------------------
 
-static const char htmlTitle[] PROGMEM = "SD Card Server";
+static const char titleName[] PROGMEM = "SD Card Server";
 
-static const char index_html[] PROGMEM = R"rawliteral(%H%%T%%/HB%
-  <h1>%T%</h1>
+static const char index_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
+  <h1>%Title%</h1>
   <p>%A%%SD%%Q%>%H1%</a></p>
 %/B%
 )rawliteral";
 
-static const char no_sd_card_html[] PROGMEM = R"rawliteral(%H%%T%%/HB%
-  <h1>%T%</h1>
+static const char redirect_html[] PROGMEM = R"rawliteral(%H%%R%%IP%%SD%%R/%%/H%%/HTML%
+)rawliteral";
+
+static const char no_sd_card_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
+  <h1>%Title%</h1>
   <p>ERROR - SD card not present!</a></p>
 %/B%
 )rawliteral";
 
-static const char invalid_SD_card_format_html[] PROGMEM = R"rawliteral(%H%%T%%/HB%
-  <h1>%T%</h1>
+static const char invalid_SD_card_format_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
+  <h1>%Title%</h1>
   <p>ERROR - SD card has invalid format!</a></p>
 %/B%
 )rawliteral";
 
-static const char not_implemented_html[] PROGMEM = R"rawliteral(%H%%T%%/HB%
-  <h1>%T%</h1>
+static const char not_implemented_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
+  <h1>%Title%</h1>
   <p>ERROR - Not implemented!</a></p>
 %/B%
 )rawliteral";
@@ -199,12 +215,21 @@ processor (
         return String(htmlAnchorEnd);
     if (var == "/B")
         return String(htmlBodyEnd);
+    if (var == "CT")
+        return String(htmlContentType);
     if (var == "H")
         return String(htmlHeaderStart);
+    if (var == "/H")
+        return String(htmlHeaderEnd);
     if (var == "H1")
         return String(sdFilesH1);
     if (var == "/HB")
         return String(htmlHeaderEndBodyStart);
+    if (var == "IP") {
+        IPAddress ip = WiFi.localIP();
+        sprintf (htmlBuffer, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+        return String(htmlBuffer);
+    }
     if (var == "LI")
         return String(htmlListItemStart);
     if (var == "/LI")
@@ -219,8 +244,16 @@ processor (
     }
     if (var == "Q")
         return String("\"");
+    if (var == "R")
+        return String(htmlRedirect);
+    if (var == "R/")
+        return String(htmlRedirectEnd);
     if (var == "T")
         return String(htmlTitle);
+    if (var == "Title")
+        return String(titleName);
+    if (var == "/T")
+        return String(htmlTitleEnd);
     if (var == "UL")
         return String(htmlUlListStart);
     if (var == "/UL")
@@ -612,6 +645,28 @@ pageNotFound (
     request->send(404);
 }
 
+//------------------------------------------------------------------------------
+// redirectPage
+//      Main page for the SD card web site
+//
+//  Inputs:
+//      request: Address of the AsyncWebServerRequest object
+//------------------------------------------------------------------------------
+static
+void
+redirectPage (
+    AsyncWebServerRequest * request
+    )
+{
+    const char * page;
+
+    // Determine which page to send
+    page = sdCardSizeMB ? redirect_html : no_sd_card_html;
+
+    // Send the response
+    request->send_P(200, "text/html", page, processor);
+}
+
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Library API
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -732,7 +787,8 @@ SdCardServer::sdCardListingWebPageLink(
 //------------------------------------------------------------------------------
 void
 SdCardServer::sdCardWebSite(
-    AsyncWebServer * server
+    AsyncWebServer * server,
+    bool redirect
     )
 {
     // Save the server address
@@ -742,9 +798,14 @@ SdCardServer::sdCardWebSite(
     sdCardSize();
 
     // Send the response
-    server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        indexPage (request);
-    });
+    if (redirect)
+        webSiteHandler = &(server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+            redirectPage (request);
+        }));
+    else
+        webSiteHandler = &(server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+            indexPage (request);
+        }));
 }
 
 //------------------------------------------------------------------------------

@@ -120,10 +120,12 @@ public:
     //
     //  Inputs:
     //      server: Address of an AsyncWebServer object
+    //      redirect: Redirect the main web page to the SD card listing
     //--------------------------------------------------------------------------
     void
     sdCardWebSite(
-        AsyncWebServer * server
+        AsyncWebServer * server,
+        bool redirect
         );
 
     //--------------------------------------------------------------------------
