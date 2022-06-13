@@ -64,6 +64,7 @@ exist.  If a website already exists then use sdCardListingWebPageLink to add a l
 `mySdCardServer.sdCardWebSite(server);`
 ##### Required parameter
 **server:** Address of an AsyncWebServer object  *(AsyncWebServer *)*
+**redirect:** Redirect the main web page to the SD card listing page if set true
 ##### Returns
 None.
 ##### Example
