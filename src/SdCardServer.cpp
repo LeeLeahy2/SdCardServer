@@ -17,6 +17,8 @@
 //#define NEXT_ENTRY_SIZE         ((2 * MAX_FILE_NAME_SIZE) + 128)
 #define NEXT_ENTRY_SIZE         MAX_FILE_NAME_SIZE
 
+#define LINE_BUFFER_SIZE        1024    // Buffer to hold line across packets
+
 typedef enum {
     LS_HEADER = 0,
     LS_DISPLAY_FILES,
@@ -125,6 +127,12 @@ static const char invalid_SD_card_format_html[] PROGMEM = R"rawliteral(%H%%CT%%T
 %/B%
 )rawliteral";
 
+static const char memory_allocation_failed[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
+  <h1>%Title%</h1>
+  <p>ERROR - Memory allocation failed!</a></p>
+%/B%
+)rawliteral";
+
 static const char not_implemented_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title%%/T%%/HB%
   <h1>%Title%</h1>
   <p>ERROR - Not implemented!</a></p>
@@ -137,6 +145,9 @@ static const char not_implemented_html[] PROGMEM = R"rawliteral(%H%%CT%%T%%Title
 
 static SD_CARD_PRESENT cardPresent;    // Routine to determine if SD card is present
 static char htmlBuffer[256];           // Buffer for HTML token replacement
+static char * lineBuffer;              // Temporary buffer to hold the next line
+static char * lineBufferData;
+static char * lineBufferDataEnd;
 static int sdCardEmpty;                // No files found in the FAT file system
 static float sdCardSizeMB;             // Size of the SD card in MB (1000 * 1000 bytes)
 static SdFat * sdFat;                  // Address of a SdFat object
@@ -349,86 +360,96 @@ cardListing (
     size_t maxLen
     )
 {
-    uint8_t * bufferStart;
     int bytesWritten;
     HtmlPrint * htmlPrint;
+    int length;
 
-    // Redirect the output to the web page
-    htmlPrint = new HtmlPrint();
-    bufferStart = buffer;
-    *buffer = 0;
-    do {
-        // Determine if the buffer can contain another file link
-        if (maxLen <= NEXT_ENTRY_SIZE)
-            // Not enough space
-            break;
-
-        // Add the next file name
+    bytesWritten = 0;
+    if (lineBuffer) {
+        // Redirect the output to the web page
+        htmlPrint = new HtmlPrint();
         *buffer = 0;
-        switch (state) {
-        case LS_HEADER:
-            // Add the header, start the body and add the heading
-            strcpy_P((char *)buffer, sdHeader);
-            state = LS_DISPLAY_FILES;
-            break;
+        do {
+            // Determine if the previous buffer was too small for all of the data
+            if (lineBufferData >= lineBufferDataEnd) {
+                // Add the next file name
+                lineBuffer[0] = 0;
+                switch (state) {
+                case LS_HEADER:
+                    // Add the header, start the body and add the heading
+                    strcpy_P(lineBuffer, sdHeader);
+                    state = LS_DISPLAY_FILES;
+                    break;
 
-        case LS_DISPLAY_FILES:
-            // Add the next file name
-            sdFile = SdFile();
-            if (!sdFile.openNext(&sdRootDir, O_RDONLY)) {
-                state = LS_TRAILER;
-                if (!sdCardEmpty) {
-                    // No more files, at least one file displayed
+                case LS_DISPLAY_FILES:
+                    // Add the next file name
+                    sdFile = SdFile();
+                    if (!sdFile.openNext(&sdRootDir, O_RDONLY)) {
+                        state = LS_TRAILER;
+                        if (!sdCardEmpty) {
+                            // No more files, at least one file displayed
+                            break;
+                        }
+
+                        // No files on the SD card
+                        strcpy_P (lineBuffer, sdNoFiles);
+                        break;
+                    }
+
+                    // Start the list if necessary
+                    if (sdCardEmpty) {
+                        sdCardEmpty = 0;
+                        strcpy_P(lineBuffer, htmlUlListStart);
+                    }
+
+                    // Add the anchor if another file exists
+                    buildHtmlAnchor (htmlPrint, (uint8_t *)&lineBuffer[strlen(lineBuffer)]);
+
+                    // Close the file
+                    sdFile.close();
+                    break;
+
+                case LS_TRAILER:
+                    // Finish the list if there are files listed
+                    if (!sdCardEmpty)
+                        strcat_P(lineBuffer, htmlUlListEnd);
+
+                    // Finish the page body
+                    strcat_P(lineBuffer, htmlBodyEnd);
+                    state = LS_DONE;
                     break;
                 }
 
-                // No files on the SD card
-                strcpy_P ((char *)buffer, sdNoFiles);
-                break;
+                // Set the temporary buffer length
+                lineBufferData = lineBuffer;
+                lineBufferDataEnd = &lineBuffer[strlen(lineBuffer)];
             }
 
-            // Start the list if necessary
-            if (sdCardEmpty) {
-                sdCardEmpty = 0;
-                strcpy_P((char *)buffer, htmlUlListStart);
-                buffer += strlen((char *)buffer);
-            }
+            // Determine how much data will fit in the buffer
+            length = lineBufferDataEnd - lineBufferData;
+            if (length > maxLen)
+                length = maxLen;
 
-            // Add the anchor if another file exists
-            buildHtmlAnchor (htmlPrint, buffer);
+            // Move more data into the buffer
+            memcpy(&buffer[bytesWritten], lineBufferData, length);
+            lineBufferData += length;
+            bytesWritten += length;
 
-            // Close the file
-            sdFile.close();
-            break;
+        // Determine if the listing is complete, end of the page reached
+        } while (((maxLen - bytesWritten) > NEXT_ENTRY_SIZE) && (state != LS_DONE));
 
-        case LS_TRAILER:
-            // Finish the list if there are files listed
-            if (!sdCardEmpty)
-                strcat_P((char *)buffer, htmlUlListEnd);
-
-            // Finish the page body
-            strcat_P((char *)buffer, htmlBodyEnd);
-            state = LS_DONE;
-            break;
+        // The listing is now complete.  Access to the SD card file system is no
+        // longer necessary.  Close the root directory which was opened in
+        // ListingPage below.
+        if (!bytesWritten) {
+            sdRootDir.close();
+            free(lineBuffer);
+            lineBuffer = NULL;
         }
 
-        // Account for this page text
-        bytesWritten = strlen((char *)buffer);
-        buffer += bytesWritten;
-        maxLen -= bytesWritten;
-
-    // Determine if the listing is complete, end of the page reached
-    } while ((maxLen > NEXT_ENTRY_SIZE) && (state != LS_DONE));
-
-    // The listing is now complete.  Access to the SD card file system is no
-    // longer necessary.  Close the root directory which was opened in
-    // ListingPage below.
-    bytesWritten = buffer - bufferStart;
-    if (!bytesWritten)
-        sdRootDir.close();
-
-    // Done redirecting the output
-    delete htmlPrint;
+        // Done redirecting the output
+        delete htmlPrint;
+    }
 
     // Return this portion of the page to the web server for transmission
     return bytesWritten;
@@ -459,7 +480,16 @@ listingPage (
         // server.
         sdCardEmpty = 1;
         sdRootDir = SdFile();
-        if (!sdRootDir.openRoot(sdFat->vol())) {
+
+        // Allocate a temporary buffer to hold data across packets.
+        lineBuffer = (char *)malloc(LINE_BUFFER_SIZE);
+        lineBufferData = lineBuffer;
+        lineBufferDataEnd = lineBuffer;
+        if (!lineBuffer) {
+            // Invalid SD card format
+            request->send_P(200, "text/html", memory_allocation_failed, processor);
+        }
+        else if (!sdRootDir.openRoot(sdFat->vol())) {
             // Invalid SD card format
             request->send_P(200, "text/html", invalid_SD_card_format_html, processor);
         } else {
