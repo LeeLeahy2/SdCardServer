@@ -151,8 +151,8 @@ static char * lineBufferDataEnd;
 static int sdCardEmpty;                // No files found in the FAT file system
 static float sdCardSizeMB;             // Size of the SD card in MB (1000 * 1000 bytes)
 static SdFat * sdFat;                  // Address of a SdFat object
-static SdFile sdFile;                  // File on the SD card
-static SdFile sdRootDir;               // Root directory file on the SD card
+static SdFile * sdFile;                // File on the SD card
+static SdFile * sdRootDir;             // Root directory file on the SD card
 static const char * serverHdrText;     // Zero terminated string for web server name
 static LISTING_STATE state;            // Listing state
 static const char * webPage;           // Zero terminated string for SD card's web pages
@@ -320,20 +320,20 @@ buildHtmlAnchor(HtmlPrint * htmlPrint, char * buffer) {
 
     // Display the file date
     htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
-    sdFile.printModifyDateTime(htmlPrint);
+    sdFile->printModifyDateTime(htmlPrint);
     strcat(buffer, ", ");
 
     // Build the HTML anchor
     strcat(buffer, "%A%%SD%");
     htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
-    sdFile.printName(htmlPrint);
+    sdFile->printName(htmlPrint);
     strcat(buffer, "\">");
     htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
-    sdFile.printName(htmlPrint);
+    sdFile->printName(htmlPrint);
     strcat(buffer, "%/A%, ");
 
     // Display the file size
-    u64 = sdFile.fileSize();
+    u64 = sdFile->fileSize();
     u32 = u64 / (1ull * 1000 * 1000 * 1000);
     if (u32)
         strcat(buffer, String(u32).c_str());
@@ -383,9 +383,13 @@ cardListing (
 
                 case LS_DISPLAY_FILES:
                     // Add the next file name
-                    sdFile = SdFile();
-                    if (!sdFile.openNext(&sdRootDir, O_RDONLY)) {
+                    sdFile = new SdFile();
+                    if ((!sdRootDir) || (!sdFile) || (!sdFile->openNext(sdRootDir, O_RDONLY))) {
                         state = LS_TRAILER;
+                        if (sdFile) {
+                            delete sdFile;
+                            sdFile = NULL;
+                        }
                         if (!sdCardEmpty) {
                             // No more files, at least one file displayed
                             break;
@@ -406,7 +410,9 @@ cardListing (
                     buildHtmlAnchor (htmlPrint, &lineBuffer[strlen(lineBuffer)]);
 
                     // Close the file
-                    sdFile.close();
+                    sdFile->close();
+                    delete sdFile;
+                    sdFile = NULL;
                     break;
 
                 case LS_TRAILER:
@@ -442,7 +448,12 @@ cardListing (
         // longer necessary.  Close the root directory which was opened in
         // ListingPage below.
         if (!bytesWritten) {
-            sdRootDir.close();
+            // Done with the root directory
+            sdRootDir->close();
+            delete sdRootDir;
+            sdRootDir = NULL;
+
+            // Done with the line buffer
             free(lineBuffer);
             lineBuffer = NULL;
         }
@@ -474,13 +485,6 @@ listingPage (
         // SD card not present
         request->send_P(200, "text/html", no_sd_card_html, processor);
     else {
-        // Open the root directory.  This entry must remain open after this
-        // function exits to allow the code above to access the SD card file
-        // system and send more data as buffers become available in the web
-        // server.
-        sdCardEmpty = 1;
-        sdRootDir = SdFile();
-
         // Allocate a temporary buffer to hold data across packets.
         lineBuffer = (char *)malloc(LINE_BUFFER_SIZE);
         lineBufferData = lineBuffer;
@@ -488,20 +492,37 @@ listingPage (
         if (!lineBuffer) {
             // Invalid SD card format
             request->send_P(200, "text/html", memory_allocation_failed, processor);
-        }
-        else if (!sdRootDir.openRoot(sdFat->vol())) {
-            // Invalid SD card format
-            request->send_P(200, "text/html", invalid_SD_card_format_html, processor);
         } else {
-            state = LS_HEADER;
-            response = request->beginChunkedResponse("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
-                return cardListing(buffer, maxLen);
-            }, processor);
+            // Open the root directory.  This entry must remain open after this
+            // function exits to allow the code above to access the SD card file
+            // system and send more data as buffers become available in the web
+            // server.
+            sdCardEmpty = 1;
+            sdRootDir = new SdFile();
+            if ((!sdRootDir) || (!sdRootDir->openRoot(sdFat->vol()))) {
+                // Done with the root directory
+                if (sdRootDir) {
+                    delete sdRootDir;
+                    sdRootDir = NULL;
+                }
 
-            // Send the response
-            if (serverHdrText)
-                response->addHeader("Server", serverHdrText);
-            request->send(response);
+                // Done with the line buffer
+                free(lineBuffer);
+                lineBuffer = NULL;
+
+                // Invalid SD card format
+                request->send_P(200, "text/html", invalid_SD_card_format_html, processor);
+            } else {
+                state = LS_HEADER;
+                response = request->beginChunkedResponse("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+                    return cardListing(buffer, maxLen);
+                }, processor);
+
+                // Send the response
+                if (serverHdrText)
+                    response->addHeader("Server", serverHdrText);
+                request->send(response);
+            }
         }
     }
 }
@@ -529,15 +550,18 @@ returnFile(
 
     // Read data from the file
     bytesToRead = maxLen;
-    bytesRead = sdFile.read(buffer, bytesToRead);
+    bytesRead = sdFile->read(buffer, bytesToRead);
 
     // Don't return any more bytes on error
     if (bytesRead < 0)
         bytesRead = 0;
 
     // Close the file when done
-    if (!bytesRead)
-        sdFile.close();
+    if (!bytesRead) {
+        sdFile->close();
+        delete sdFile;
+        sdFile = NULL;
+    }
 
     // Return the number of bytes read
     return bytesRead;
@@ -563,30 +587,39 @@ fileDownload (
 {
     uint64_t fileSize;
 
-    //  Download the file if requested
+    // Download the file if requested
     // Attempt to open the root directory
-    sdRootDir = SdFile();
-    if (!sdRootDir.openRoot(sdFat->vol())) {
+    sdRootDir = new SdFile();
+    if ((!sdRootDir) || (!sdRootDir->openRoot(sdFat->vol()))) {
         Serial.println("ERROR - Failed to open root directory!");
         return 0;
     }
 
     // Attempt to open the file
-    if (!sdFile.open(&sdRootDir, filename, O_RDONLY)) {
+    sdFile = new SdFile();
+    if ((!sdFile) || (!sdFile->open(sdRootDir, filename, O_RDONLY))) {
         // File not found
         Serial.println("ERROR - File not found!");
-        sdRootDir.close();
+        if (sdFile) {
+            delete sdFile;
+            sdFile = NULL;
+        }
+        sdRootDir->close();
+        delete sdRootDir;
+        sdRootDir = NULL;
         return 0;
     }
 
     // Close the root directory
-    sdRootDir.close();
+    sdRootDir->close();
+    delete sdRootDir;
+    sdRootDir = NULL;
 
     // Return the file
     AsyncWebServerResponse *response = request->beginChunkedResponse("application/octet-stream", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
         return returnFile(buffer, maxLen);
     });
-    fileSize = sdFile.fileSize();
+    fileSize = sdFile->fileSize();
     response->addHeader("Content-Length", String((int)fileSize));
     request->send(response);
     return 1;
