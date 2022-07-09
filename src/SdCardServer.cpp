@@ -365,7 +365,7 @@ cardListing (
     int length;
 
     bytesWritten = 0;
-    if (lineBuffer) {
+    if (maxLen && lineBuffer) {
         // Redirect the output to the web page
         htmlPrint = new HtmlPrint();
         *buffer = 0;
