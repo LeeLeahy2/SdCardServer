@@ -311,35 +311,35 @@ sdCardSize(
 //------------------------------------------------------------------------------
 static
 void
-buildHtmlAnchor(HtmlPrint * htmlPrint, uint8_t *buffer) {
+buildHtmlAnchor(HtmlPrint * htmlPrint, char * buffer) {
     uint64_t u64;
     uint32_t u32;
 
     // Start the list item
-    strcpy((char *)buffer, "%LI%");
+    strcpy(buffer, "%LI%");
 
     // Display the file date
-    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
+    htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
     sdFile.printModifyDateTime(htmlPrint);
-    strcat((char *)buffer, ", ");
+    strcat(buffer, ", ");
 
     // Build the HTML anchor
-    strcat((char *)buffer, "%A%%SD%");
-    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
+    strcat(buffer, "%A%%SD%");
+    htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
     sdFile.printName(htmlPrint);
-    strcat((char *)buffer, "\">");
-    htmlPrint->setBufferAddress(buffer +strlen((char *)buffer));
+    strcat(buffer, "\">");
+    htmlPrint->setBufferAddress((uint8_t *)(buffer + strlen(buffer)));
     sdFile.printName(htmlPrint);
-    strcat((char *)buffer, "%/A%, ");
+    strcat(buffer, "%/A%, ");
 
     // Display the file size
     u64 = sdFile.fileSize();
     u32 = u64 / (1ull * 1000 * 1000 * 1000);
     if (u32)
-        strcat((char *)buffer, String(u32).c_str());
+        strcat(buffer, String(u32).c_str());
     u32 = u64 % (1ull * 1000 * 1000 * 1000);
-    strcat((char *)buffer, String(u32).c_str());
-    strcat((char *)buffer, " bytes%/LI%");
+    strcat(buffer, String(u32).c_str());
+    strcat(buffer, " bytes%/LI%");
 }
 
 //------------------------------------------------------------------------------
@@ -403,7 +403,7 @@ cardListing (
                     }
 
                     // Add the anchor if another file exists
-                    buildHtmlAnchor (htmlPrint, (uint8_t *)&lineBuffer[strlen(lineBuffer)]);
+                    buildHtmlAnchor (htmlPrint, &lineBuffer[strlen(lineBuffer)]);
 
                     // Close the file
                     sdFile.close();
