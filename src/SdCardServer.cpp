@@ -295,7 +295,7 @@ sdCardSize(
 
     // Get the SD card size
     sdFat->card()->readCSD(&csd); //Card Specific Data
-    sdCardBytes = sd->card()->sectorCount() * 512;
+    sdCardBytes = sdFat->card()->sectorCount();
     sdCardBytes <<= 9;
     sdCardSizeMB = 0.000001 * sdCardBytes;
     return sdCardBytes;
