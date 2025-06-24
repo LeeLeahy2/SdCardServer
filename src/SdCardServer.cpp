@@ -483,7 +483,7 @@ listingPage (
 
     if (!sdCardSize())
         // SD card not present
-        request->send_P(200, "text/html", no_sd_card_html, processor);
+        request->send(200, "text/html", no_sd_card_html, processor);
     else {
         // Allocate a temporary buffer to hold data across packets.
         lineBuffer = (char *)malloc(LINE_BUFFER_SIZE);
@@ -491,7 +491,7 @@ listingPage (
         lineBufferDataEnd = lineBuffer;
         if (!lineBuffer) {
             // Invalid SD card format
-            request->send_P(200, "text/html", memory_allocation_failed, processor);
+            request->send(200, "text/html", memory_allocation_failed, processor);
         } else {
             // Open the root directory.  This entry must remain open after this
             // function exits to allow the code above to access the SD card file
@@ -511,7 +511,7 @@ listingPage (
                 lineBuffer = NULL;
 
                 // Invalid SD card format
-                request->send_P(200, "text/html", invalid_SD_card_format_html, processor);
+                request->send(200, "text/html", invalid_SD_card_format_html, processor);
             } else {
                 state = LS_HEADER;
                 response = request->beginChunkedResponse("text/html", [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
@@ -644,7 +644,7 @@ indexPage (
     page = sdCardSizeMB ? index_html : no_sd_card_html;
 
     // Send the response
-    request->send_P(200, "text/html", page, processor);
+    request->send(200, "text/html", page, processor);
 }
 
 //------------------------------------------------------------------------------
@@ -727,7 +727,7 @@ redirectPage (
     page = sdCardSizeMB ? redirect_html : no_sd_card_html;
 
     // Send the response
-    request->send_P(200, "text/html", page, processor);
+    request->send(200, "text/html", page, processor);
 }
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
